@@ -2,7 +2,7 @@ name: Daily bizinfo notify
 
 on:
   schedule:
-    - cron: "0 22 * * *" # 07:00 KST
+    - cron: "7 22 * * *" # ~07:00 KST (avoid the on-the-hour slot, which GitHub can delay/drop)
   workflow_dispatch: {}
 
 permissions:
