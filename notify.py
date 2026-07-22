@@ -20,9 +20,17 @@ TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 STATE_PATH = Path(__file__).parent / "sent_ids.json"
 STATE_RETENTION_DAYS = 120
 FETCH_COUNT = 100
-TARGET_REGION_TAG = "전남광주"
-REGION_TAG_RE = re.compile(r"^\[([^\]]+)\]")
 TELEGRAM_MSG_LIMIT = 4000
+
+TARGET_REGION = "전남광주"
+REGION_CODES = {
+    "서울", "부산", "대구", "인천", "전남광주", "대전", "울산", "세종",
+    "경기", "강원", "충북", "충남", "전북", "경북", "경남", "제주",
+}
+# jrsdInsttNm for a province/metro government always ends in one of these;
+# central ministries end in 부/처/청 and never match. 전남광주통합특별시 also
+# ends in 특별시, so it needs an explicit carve-out below.
+LOCAL_GOV_SUFFIX_RE = re.compile(r"(특별자치도|특별자치시|광역시|특별시|도)$")
 
 
 def fetch_notices(api_key: str) -> list[dict]:
@@ -37,11 +45,20 @@ def fetch_notices(api_key: str) -> list[dict]:
 
 
 def is_target(notice: dict) -> bool:
-    title = notice.get("pblancNm", "")
-    match = REGION_TAG_RE.match(title)
-    if not match:
-        return True  # no region tag => nationwide notice
-    return match.group(1) == TARGET_REGION_TAG
+    tags = {t.strip() for t in notice.get("hashtags", "").split(",")} & REGION_CODES
+
+    if tags and tags != REGION_CODES:
+        # scoped to one or more specific regions
+        return TARGET_REGION in tags
+
+    # untagged or tagged with every region => looks nationwide, but some
+    # notices are actually issued by a single province (e.g. 충청남도,
+    # 세종특별자치시) that just fills in every region hashtag. Only trust it
+    # as nationwide if the issuing body isn't itself a province/metro gov.
+    jrsd = notice.get("jrsdInsttNm", "")
+    if TARGET_REGION in jrsd:
+        return True
+    return not LOCAL_GOV_SUFFIX_RE.search(jrsd)
 
 
 def load_state() -> dict[str, str]:
