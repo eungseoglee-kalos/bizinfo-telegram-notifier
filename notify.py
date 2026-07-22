@@ -32,6 +32,12 @@ REGION_CODES = {
 # ends in 특별시, so it needs an explicit carve-out below.
 LOCAL_GOV_SUFFIX_RE = re.compile(r"(특별자치도|특별자치시|광역시|특별시|도)$")
 
+# bizinfo only has one merged "전남광주" hashtag, but titles sub-label which
+# half it's actually for ([전남], [광주], or [전남광주]). Only 광주-only
+# notices are out of scope.
+TITLE_TAG_RE = re.compile(r"^\[([^\]]+)\]")
+EXCLUDED_TITLE_TAGS = {"광주"}
+
 
 def fetch_notices(api_key: str) -> list[dict]:
     resp = requests.get(
@@ -45,6 +51,10 @@ def fetch_notices(api_key: str) -> list[dict]:
 
 
 def is_target(notice: dict) -> bool:
+    title_match = TITLE_TAG_RE.match(notice.get("pblancNm", ""))
+    if title_match and title_match.group(1) in EXCLUDED_TITLE_TAGS:
+        return False
+
     tags = {t.strip() for t in notice.get("hashtags", "").split(",")} & REGION_CODES
 
     if tags and tags != REGION_CODES:
