@@ -1,7 +1,9 @@
-"""Fetch new 기업마당(bizinfo.go.kr) support-program notices for 전남광주 and
-nationwide items, and push the new ones to Telegram.
+"""Fetch new 기업마당(bizinfo.go.kr) support-program notices scoped to 전남
+(전남, 전남광주, or multi-region collaborations that include 전남광주), and
+push the new ones to Telegram.
 
-Run daily via GitHub Actions (see .github/workflows/daily.yml).
+Run daily via GitHub Actions (see .github/workflows/daily.yml). Shared by
+poll_command.py, which answers the /list command with the full current list.
 """
 from __future__ import annotations
 
@@ -27,10 +29,6 @@ REGION_CODES = {
     "서울", "부산", "대구", "인천", "전남광주", "대전", "울산", "세종",
     "경기", "강원", "충북", "충남", "전북", "경북", "경남", "제주",
 }
-# jrsdInsttNm for a province/metro government always ends in one of these;
-# central ministries end in 부/처/청 and never match. 전남광주통합특별시 also
-# ends in 특별시, so it needs an explicit carve-out below.
-LOCAL_GOV_SUFFIX_RE = re.compile(r"(특별자치도|특별자치시|광역시|특별시|도)$")
 
 # bizinfo only has one merged "전남광주" hashtag, but titles sub-label which
 # half it's actually for ([전남], [광주], or [전남광주]). Only 광주-only
@@ -53,22 +51,13 @@ def fetch_notices(api_key: str) -> list[dict]:
 def is_target(notice: dict) -> bool:
     title_match = TITLE_TAG_RE.match(notice.get("pblancNm", ""))
     if title_match and title_match.group(1) in EXCLUDED_TITLE_TAGS:
-        return False
+        return False  # 광주 단독 표기 제외
 
     tags = {t.strip() for t in notice.get("hashtags", "").split(",")} & REGION_CODES
+    if not tags or tags == REGION_CODES:
+        return False  # 지역 태그 없음(전국) 또는 전 지역 태그(전국) => 제외
 
-    if tags and tags != REGION_CODES:
-        # scoped to one or more specific regions
-        return TARGET_REGION in tags
-
-    # untagged or tagged with every region => looks nationwide, but some
-    # notices are actually issued by a single province (e.g. 충청남도,
-    # 세종특별자치시) that just fills in every region hashtag. Only trust it
-    # as nationwide if the issuing body isn't itself a province/metro gov.
-    jrsd = notice.get("jrsdInsttNm", "")
-    if TARGET_REGION in jrsd:
-        return True
-    return not LOCAL_GOV_SUFFIX_RE.search(jrsd)
+    return TARGET_REGION in tags  # 단일/다지역 협업 모두, 전남광주 포함 시만 채택
 
 
 def load_state() -> dict[str, str]:
@@ -88,8 +77,9 @@ def save_state(state: dict[str, str]) -> None:
     )
 
 
-def format_message(notices: list[dict]) -> list[str]:
-    lines = [f"📋 기업마당 신규 지원사업 ({len(notices)}건)\n"]
+def format_message(notices: list[dict], header: str | None = None) -> list[str]:
+    header = header or f"📋 기업마당 신규 지원사업 ({len(notices)}건)"
+    lines = [header + "\n"]
     for n in notices:
         title = n.get("pblancNm", "(제목 없음)")
         period = n.get("reqstBeginEndDe", "기간 정보 없음")

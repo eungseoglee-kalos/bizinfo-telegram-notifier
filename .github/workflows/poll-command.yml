@@ -1,15 +1,15 @@
-name: Daily bizinfo notify
+name: Poll /list command
 
 on:
   schedule:
-    - cron: "5 23 * * *" # ~08:00 KST (avoid the on-the-hour slot, which GitHub can delay/drop)
+    - cron: "*/5 * * * *" # every 5 minutes
   workflow_dispatch: {}
 
 permissions:
   contents: write
 
 jobs:
-  notify:
+  poll:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,17 +20,17 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run notifier
+      - name: Poll for /list command
         env:
           BIZINFO_API_KEY: ${{ secrets.BIZINFO_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python notify.py
+        run: python poll_command.py
 
-      - name: Commit updated state
+      - name: Commit updated offset
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add sent_ids.json
-          git diff --staged --quiet || git commit -m "chore: update sent notice state"
+          git add last_update_id.json
+          git diff --staged --quiet || git commit -m "chore: update telegram update offset"
           git push
