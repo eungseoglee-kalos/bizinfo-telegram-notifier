@@ -19,10 +19,10 @@
    - `BIZINFO_API_KEY`
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID`
-3. Actions 탭에서 `Daily bizinfo notify`, `Poll /list command` 두 워크플로를 각각
-   한 번 수동 실행(`Run workflow`)해서 정상 동작 확인
-4. 이후 매일 08:00(KST)경 자동으로 신규 공고 알림이 오고, 텔레그램에서 `/list`를
-   입력하면 5분 내로 현재 조건에 맞는 전체 목록을 받아볼 수 있음
+3. Actions 탭에서 `Poll /list command and daily digest` 워크플로를 한 번 수동
+   실행(`Run workflow`)해서 정상 동작 확인
+4. 이후 자동으로 신규 공고 알림(아침 7~11시 KST 사이, GitHub 스케줄 상황에 따라
+   변동)과 `/list` 명령 응답을 받아볼 수 있음
 
 ## 로컬 테스트
 
@@ -34,14 +34,23 @@ BIZINFO_API_KEY=... TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... python poll_comm
 
 ## 동작 방식
 
-- **notify.py** (`Daily bizinfo notify`, 매일 08:00 KST경 자동 실행)
-  - `is_target()`으로 전남 관련 공고만 채택하고, `sent_ids.json`에 이미 보낸 ID를
+- **poll_command.py** (`Poll /list command and daily digest`, 5분 간격 스케줄)
+  - 매 실행마다 두 가지를 확인함:
+    1. 텔레그램 `getUpdates`로 새 메시지를 확인, `TELEGRAM_CHAT_ID`로 등록된
+       채팅에서 온 `/list` 명령이면 현재 조건에 맞는 공고 **전체**를 즉시 응답
+       (이미 보낸 것 포함). `last_update_id.json`으로 중복 응답 방지
+    2. KST 07~11시 사이이고 오늘 아직 안 보냈으면(`last_daily_run.json` 기준)
+       신규 공고만 골라 전송 (`notify.py`의 로직 재사용)
+  - `notify.py`는 이 스케줄에서 매일 호출되며, `sent_ids.json`에 이미 보낸 ID를
     기록해 새 공고만 전송 (120일 지난 기록은 자동 정리)
-- **poll_command.py** (`Poll /list command`, 5분마다 자동 실행)
-  - 텔레그램 `getUpdates`로 새 메시지를 확인, `TELEGRAM_CHAT_ID`로 등록된 채팅에서
-    온 `/list` 명령이면 현재 조건에 맞는 공고 **전체**를 즉시 응답 (이미 보낸 것 포함)
-  - `last_update_id.json`에 마지막으로 처리한 update_id를 기록해 중복 응답 방지
-  - GitHub Actions 스케줄 특성상 응답까지 최대 5분 정도 지연될 수 있음
+- **daily.yml**(`Daily bizinfo notify (manual)`)은 자동 스케줄이 계속 등록되지
+  않아 수동 실행(`workflow_dispatch`) 전용으로만 남겨둠 — 필요시 언제든 수동
+  실행 가능
+
+> GitHub Actions의 `schedule`은 "몇 분마다"로 설정해도 실제로는 몇 시간 간격으로
+> 실행되는 경우가 많고, 특정 워크플로는 아예 스케줄이 등록 안 되는 경우도
+> 확인됐습니다. 정확한 시각 실행이 꼭 필요하다면 실제 서버(VPS)의 cron/systemd
+> timer로 옮기는 것이 더 안정적입니다.
 
 ## 필터 기준 (`notify.py`의 `is_target()`)
 
