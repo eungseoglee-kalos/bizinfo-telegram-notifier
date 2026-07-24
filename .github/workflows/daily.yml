@@ -1,8 +1,11 @@
-name: Daily bizinfo notify
+name: Daily bizinfo notify (manual)
 
+# GitHub never fired this workflow's `schedule` trigger even once across
+# three different cron values, while the 5-minute poll workflow's schedule
+# fired reliably. The daily digest now rides on that poller instead (see
+# poll_command.py's should_run_daily()); this workflow is kept for manual
+# re-runs/testing only.
 on:
-  schedule:
-    - cron: "5 23 * * *" # ~08:00 KST (avoid the on-the-hour slot, which GitHub can delay/drop)
   workflow_dispatch: {}
 
 permissions:
