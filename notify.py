@@ -2,24 +2,25 @@
 (전남, 전남광주, or multi-region collaborations that include 전남광주), and
 push the new ones to Telegram.
 
-Run daily via GitHub Actions (see .github/workflows/daily.yml). Shared by
-poll_command.py, which answers the /list command with the full current list.
+Called once a day (when due) by bot_daemon.py's always-on loop. Also shared
+by poll_command.py, which answers the /list command with the full current
+list.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import sys
 from datetime import date, datetime, timedelta
-from pathlib import Path
 
 import requests
+
+from common import BASE_DIR, load_json, save_json
 
 BIZINFO_URL = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
-STATE_PATH = Path(__file__).parent / "sent_ids.json"
+STATE_PATH = BASE_DIR / "sent_ids.json"
 STATE_RETENTION_DAYS = 120
 FETCH_COUNT = 100
 TELEGRAM_MSG_LIMIT = 4000
@@ -61,9 +62,7 @@ def is_target(notice: dict) -> bool:
 
 
 def load_state() -> dict[str, str]:
-    if not STATE_PATH.exists():
-        return {}
-    return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    return load_json(STATE_PATH, {})
 
 
 def save_state(state: dict[str, str]) -> None:
@@ -72,9 +71,7 @@ def save_state(state: dict[str, str]) -> None:
         pid: seen for pid, seen in state.items()
         if datetime.strptime(seen, "%Y-%m-%d").date() >= cutoff
     }
-    STATE_PATH.write_text(
-        json.dumps(pruned, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    save_json(STATE_PATH, pruned)
 
 
 def format_message(notices: list[dict], header: str | None = None) -> list[str]:

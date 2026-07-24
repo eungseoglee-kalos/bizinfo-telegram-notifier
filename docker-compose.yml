@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TELEGRAM_POLL_TIMEOUT: "30"
+    volumes:
+      - ./data/sent_ids.json:/app/sent_ids.json
+      - ./data/last_update_id.json:/app/last_update_id.json
+      - ./data/last_daily_run.json:/app/last_daily_run.json
